@@ -209,6 +209,8 @@ sub addToEnv {
     $$env{car} = makeCons(makeCons($sym, $val), $$env{car});
 }
 
+my $g_env = makeCons($kNil, $kNil);
+
 sub eval1 {
     my ($obj, $env) = @_;
     if ($$obj{tag} eq 'nil' || $$obj{tag} eq 'num' || $$obj{tag} eq 'error') {
@@ -233,6 +235,11 @@ sub eval1 {
         return eval1(safeCar(safeCdr($args)), $env);
     } elsif ($op == makeSym('lambda')) {
         return makeExpr($args, $env);
+    } elsif ($op == makeSym('defun')) {
+        my $expr = makeExpr(safeCdr($args), $env);
+        my $sym = safeCar($args);
+        addToEnv($sym, $expr, $g_env);
+        return $sym;
     }
     return apply(eval1($op, $env), evlis($args, $env), $env);
 }
@@ -291,7 +298,6 @@ sub subrCons {
     return makeCons(safeCar($args), safeCar(safeCdr($args)));
 }
 
-my $g_env = makeCons($kNil, $kNil);
 addToEnv(makeSym('car'), makeSubr(\&subrCar), $g_env);
 addToEnv(makeSym('cdr'), makeSubr(\&subrCdr), $g_env);
 addToEnv(makeSym('cons'), makeSubr(\&subrCons), $g_env);
