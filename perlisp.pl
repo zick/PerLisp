@@ -61,6 +61,18 @@ sub makeExpr {
              env => $env };
 }
 
+sub nreverse {
+    my ($lst) = @_;
+    my $ret = $kNil;
+    while ($$lst{tag} eq 'cons') {
+        my $tmp = $$lst{cdr};
+        $$lst{cdr} = $ret;
+        $ret = $lst;
+        $lst = $tmp;
+    }
+    return $ret;
+}
+
 sub isDelimiter {
     my ($c) = @_;
     return $c eq $kLPar || $c eq $kRPar || $c eq $kQuote || $c =~ /\s+/;
@@ -90,27 +102,83 @@ sub readAtom {
             last;
         }
     }
-    return [makeNumOrSym($str), $next];
+    return (makeNumOrSym($str), $next);
 }
 
 sub read1 {
     my ($str) = @_;
     $str = skipSpaces($str);
     if ($str eq '') {
-        return makeError('empty input');
+        return (makeError('empty input'), '');
     }
     my $c = substr($str, 0, 1);
     if ($c eq $kRPar) {
-        return [makeError('invalid syntax: ' . $str), ''];
+        return (makeError('invalid syntax: ' . $str), '');
     } elsif ($c eq $kLPar) {
-        return [makeError('noimpl'), ''];
+        return (readList(substr($str, 1)), '');
     } elsif ($c eq $kRPar) {
-        return [makeError('noimpl'), ''];
+        return (makeError('noimpl'), '');
     }
     return readAtom($str);
 }
 
+sub readList {
+    my ($str) = @_;
+    my $ret = $kNil;
+    for (;;) {
+        $str = skipSpaces($str);
+        if ($str eq '') {
+            return (makeError('unfinished parenthesis'), '');
+        } elsif (substr($str, 0, 1) eq $kRPar) {
+            last;
+        }
+        my ($elm, $next) = read1($str);
+        if ($$elm{tag} eq 'error') {
+            return $elm;
+        }
+        $ret = makeCons($elm, $ret);
+        $str = $next;
+    }
+    return (nreverse($ret), substr($str, 1));
+}
+
+sub printObj {
+    my ($obj) = @_;
+    if ($$obj{tag} eq 'num' || $$obj{tag} eq 'sym' || $$obj{tag} eq 'nil') {
+        return $$obj{data};
+    } elsif ($$obj{tag} eq 'error') {
+        return '<error: ' . $$obj{data} . '>';
+    } elsif ($$obj{tag} eq 'cons') {
+        return printList($obj);
+    } elsif ($$obj{tag} eq 'subr') {
+        return '<subr>';
+    } elsif ($$obj{tag} eq 'expr') {
+        return '<expr>';
+    }
+    return '<unknown object>';
+}
+
+sub printList {
+    my ($obj) = @_;
+    my $ret = '';
+    my $first = 1;
+    while ($$obj{tag} eq 'cons') {
+        if ($first) {
+            $ret = printObj($$obj{car});
+            $first = 0;
+        } else {
+            $ret .= ' ' . printObj($$obj{car});
+        }
+        $obj = $$obj{cdr};
+    }
+    if ($$obj{tag} eq 'nil') {
+        return '(' . $ret . ')';
+    }
+    return '(' . $ret . ' . ' . printObj($obj) . ')';
+}
+
 while (defined(my $line = <STDIN>)) {
-    my $ret = read1($line);
-    print "$ret->[0]->{data} ($ret->[0]->{tag})\n";
+    my ($ret, $_) = read1($line);
+    my $str = printObj($ret);
+    print "$str\n";
 }
