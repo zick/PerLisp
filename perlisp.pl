@@ -308,13 +308,97 @@ sub subrCons {
     return makeCons(safeCar($args), safeCar(safeCdr($args)));
 }
 
+sub subrEq {
+    my ($args) = @_;
+    my $x = safeCar($args);
+    my $y = safeCar(safeCdr($args));
+    if ($$x{tag} eq 'num' && $$y{tag} eq 'num') {
+        if ($$x{data} == $$y{data}) {
+            return makeSym('t');
+        }
+        return $kNil;
+    } elsif ($x == $y) {
+        return makeSym('t');
+    }
+    return $kNil;
+}
+
+sub subrAtom {
+    my ($args) = @_;
+    if (safeCar($args)->{tag} eq 'cons') {
+        return $kNil;
+    }
+    return makeSym('t');
+}
+
+sub subrNumberp {
+    my ($args) = @_;
+    if (safeCar($args)->{tag} eq 'num') {
+        return makeSym('t');
+    }
+    return $kNil;
+}
+
+sub subrSymbolp {
+    my ($args) = @_;
+    if (safeCar($args)->{tag} eq 'sym') {
+        return makeSym('t');
+    }
+    return $kNil;
+}
+
+sub subrAddOrMul {
+    my ($fn, $init_val) = @_;
+    return sub {
+        my ($args) = @_;
+        my $ret = $init_val;
+        while ($$args{tag} eq 'cons') {
+            if ($$args{car}->{tag} ne 'num') {
+                return makeError('wrong type');
+            }
+            $ret = $fn->($ret, $$args{car}->{data});
+            $args = $$args{cdr};
+        }
+        return makeNum($ret);
+    };
+}
+my $subrAdd = subrAddOrMul(sub { return $_[0] + $_[1]; }, 0);
+my $subrMul = subrAddOrMul(sub { return $_[0] * $_[1]; }, 1);
+
+sub subrSubOrDivOrMod {
+    my ($fn) = @_;
+    return sub {
+        my ($args) = @_;
+        my $x = safeCar($args);
+        my $y = safeCar(safeCdr($args));
+        if ($$x{tag} ne 'num' || $$y{tag} ne 'num') {
+            return makeError('wrong type');
+        }
+        return makeNum($fn->($$x{data}, $$y{data}));
+    };
+}
+my $subrSub = subrSubOrDivOrMod(sub { return $_[0] - $_[1]; });
+my $subrDiv = subrSubOrDivOrMod(sub { return $_[0] / $_[1]; });
+my $subrMod = subrSubOrDivOrMod(sub { return $_[0] % $_[1]; });
+
 addToEnv(makeSym('car'), makeSubr(\&subrCar), $g_env);
 addToEnv(makeSym('cdr'), makeSubr(\&subrCdr), $g_env);
 addToEnv(makeSym('cons'), makeSubr(\&subrCons), $g_env);
+addToEnv(makeSym('eq'), makeSubr(\&subrEq), $g_env);
+addToEnv(makeSym('atom'), makeSubr(\&subrAtom), $g_env);
+addToEnv(makeSym('numberp'), makeSubr(\&subrNumberp), $g_env);
+addToEnv(makeSym('symbolp'), makeSubr(\&subrSymbolp), $g_env);
+addToEnv(makeSym('+'), makeSubr($subrAdd), $g_env);
+addToEnv(makeSym('*'), makeSubr($subrMul), $g_env);
+addToEnv(makeSym('-'), makeSubr($subrSub), $g_env);
+addToEnv(makeSym('/'), makeSubr($subrDiv), $g_env);
+addToEnv(makeSym('mod'), makeSubr($subrMod), $g_env);
 addToEnv(makeSym('t'), makeSym('t'), $g_env);
 
+print '> ';
 while (defined(my $line = <STDIN>)) {
     my ($exp, $_) = read1($line);
     my $str = printObj(eval1($exp, $g_env));
     print "$str\n";
+    print '> ';
 }
