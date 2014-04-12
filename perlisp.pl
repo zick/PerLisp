@@ -116,8 +116,9 @@ sub read1 {
         return (makeError('invalid syntax: ' . $str), '');
     } elsif ($c eq $kLPar) {
         return (readList(substr($str, 1)), '');
-    } elsif ($c eq $kRPar) {
-        return (makeError('noimpl'), '');
+    } elsif ($c eq $kQuote) {
+        my ($elm, $next) = read1(substr($str, 1));
+        return (makeCons(makeSym('quote'), makeCons($elm, $kNil)), $next);
     }
     return readAtom($str);
 }
@@ -209,10 +210,65 @@ sub eval1 {
         }
         return $$bind{cdr};
     }
+
+    my $op = safeCar($obj);
+    my $args = safeCdr($obj);
+    if ($op == makeSym('quote')) {
+        return safeCar($args);
+    } elsif ($op == makeSym('if')) {
+        if (eval1(safeCar($args), $env) == $kNil) {
+            return eval1(safeCar(safeCdr(safeCdr($args))), $env);
+        }
+        return eval1(safeCar(safeCdr($args)), $env);
+    }
+    return apply(eval1($op, $env), evlis($args, $env), $env);
+}
+
+sub evlis {
+    my ($lst, $env) = @_;
+    my $ret = $kNil;
+    while ($$lst{tag} eq 'cons') {
+        my $elm = eval1($$lst{car}, $env);
+        if ($$elm{tag} eq 'error') {
+            return $elm;
+        }
+        $ret = makeCons($elm, $ret);
+        $lst = $$lst{cdr};
+    }
+    return nreverse($ret)
+}
+
+sub apply {
+    my ($fn, $args, $env) = @_;
+    if ($$fn{tag} eq 'error') {
+        return $fn;
+    } elsif ($$args{tag} eq 'error') {
+        return $args;
+    } elsif ($$fn{tag} eq 'subr') {
+        return $$fn{data}->($args);
+    }
     return makeError('noimpl');
 }
 
+sub subrCar {
+    my ($args) = @_;
+    return safeCar(safeCar($args));
+}
+
+sub subrCdr {
+    my ($args) = @_;
+    return safeCdr(safeCar($args));
+}
+
+sub subrCons {
+    my ($args) = @_;
+    return makeCons(safeCar($args), safeCar(safeCdr($args)));
+}
+
 my $g_env = makeCons($kNil, $kNil);
+addToEnv(makeSym('car'), makeSubr(\&subrCar), $g_env);
+addToEnv(makeSym('cdr'), makeSubr(\&subrCdr), $g_env);
+addToEnv(makeSym('cons'), makeSubr(\&subrCons), $g_env);
 addToEnv(makeSym('t'), makeSym('t'), $g_env);
 
 while (defined(my $line = <STDIN>)) {
