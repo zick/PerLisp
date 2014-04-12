@@ -177,8 +177,46 @@ sub printList {
     return '(' . $ret . ' . ' . printObj($obj) . ')';
 }
 
+sub findVar {
+    my ($sym, $env) = @_;
+    while ($$env{tag} eq 'cons') {
+        my $alist = $$env{car};
+        while ($$alist{tag} eq 'cons') {
+            if ($$alist{car}->{car} == $sym) {
+                return $$alist{car};
+            }
+            $alist = $$alist{cdr};
+        }
+        $env = $$env{cdr};
+    }
+    return $kNil;
+}
+
+sub addToEnv {
+    my ($sym, $val, $env) = @_;
+    $$env{car} = makeCons(makeCons($sym, $val), $$env{car});
+}
+
+sub eval1 {
+    my ($obj, $env) = @_;
+    if ($$obj{tag} eq 'nil' || $$obj{tag} eq 'num' || $$obj{tag} eq 'error') {
+        return $obj;
+    }
+    elsif ($$obj{tag} eq 'sym') {
+        my $bind = findVar($obj, $env);
+        if ($bind == $kNil) {
+            return makeError($$obj{data} . ' has no value');
+        }
+        return $$bind{cdr};
+    }
+    return makeError('noimpl');
+}
+
+my $g_env = makeCons($kNil, $kNil);
+addToEnv(makeSym('t'), makeSym('t'), $g_env);
+
 while (defined(my $line = <STDIN>)) {
-    my ($ret, $_) = read1($line);
-    my $str = printObj($ret);
+    my ($exp, $_) = read1($line);
+    my $str = printObj(eval1($exp, $g_env));
     print "$str\n";
 }
