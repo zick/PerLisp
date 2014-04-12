@@ -5,7 +5,7 @@ Lisp implementation in Perl.
 
 == How to use
 
-% perl perlisp.py
+% perl perlisp.pl
 > (car '(a b c))
 a
 > (cdr '(a b c))
