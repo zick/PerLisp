@@ -73,6 +73,17 @@ sub nreverse {
     return $ret;
 }
 
+sub pairlis {
+    my ($lst1, $lst2) = @_;
+    my $ret = $kNil;
+    while ($$lst1{tag} eq 'cons' && $$lst2{tag} eq 'cons') {
+        $ret = makeCons(makeCons($$lst1{car}, $$lst2{car}), $ret);
+        $lst1 = $$lst1{cdr};
+        $lst2 = $$lst2{cdr};
+    }
+    return nreverse($ret)
+}
+
 sub isDelimiter {
     my ($c) = @_;
     return $c eq $kLPar || $c eq $kRPar || $c eq $kQuote || $c =~ /\s+/;
@@ -220,6 +231,8 @@ sub eval1 {
             return eval1(safeCar(safeCdr(safeCdr($args))), $env);
         }
         return eval1(safeCar(safeCdr($args)), $env);
+    } elsif ($op == makeSym('lambda')) {
+        return makeExpr($args, $env);
     }
     return apply(eval1($op, $env), evlis($args, $env), $env);
 }
@@ -238,6 +251,16 @@ sub evlis {
     return nreverse($ret)
 }
 
+sub progn {
+    my ($body, $env) = @_;
+    my $ret = $kNil;
+    while ($$body{tag} eq 'cons') {
+        $ret = eval1($$body{car}, $env);
+        $body = $$body{cdr};
+    }
+    return $ret;
+}
+
 sub apply {
     my ($fn, $args, $env) = @_;
     if ($$fn{tag} eq 'error') {
@@ -246,6 +269,9 @@ sub apply {
         return $args;
     } elsif ($$fn{tag} eq 'subr') {
         return $$fn{data}->($args);
+    } elsif ($$fn{tag} eq 'expr') {
+        return progn($$fn{body},
+                     makeCons(pairlis($$fn{args}, $args), $$fn{env}));
     }
     return makeError('noimpl');
 }
