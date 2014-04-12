@@ -240,6 +240,16 @@ sub eval1 {
         my $sym = safeCar($args);
         addToEnv($sym, $expr, $g_env);
         return $sym;
+    } elsif ($op == makeSym('setq')) {
+        my $val = eval1(safeCar(safeCdr($args)), $env);
+        my $sym = safeCar($args);
+        my $bind = findVar($sym, $env);
+        if ($bind == $kNil) {
+            addToEnv($sym, $val, $g_env);
+        } else {
+            $$bind{cdr} = $val;
+        }
+        return $val;
     }
     return apply(eval1($op, $env), evlis($args, $env), $env);
 }
