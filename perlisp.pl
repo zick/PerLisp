@@ -37,6 +37,12 @@ sub makeSym {
     }
     return $$sym_table{$str};
 }
+my $sym_t = makeSym('t');
+my $sym_quote = makeSym('quote');
+my $sym_if = makeSym('if');
+my $sym_lambda = makeSym('lambda');
+my $sym_defun = makeSym('defun');
+my $sym_setq = makeSym('setq');
 
 sub makeNum {
     my ($num) = @_;
@@ -129,7 +135,7 @@ sub read1 {
         return (readList(substr($str, 1)), '');
     } elsif ($c eq $kQuote) {
         my ($elm, $next) = read1(substr($str, 1));
-        return (makeCons(makeSym('quote'), makeCons($elm, $kNil)), $next);
+        return (makeCons($sym_quote, makeCons($elm, $kNil)), $next);
     }
     return readAtom($str);
 }
@@ -226,21 +232,21 @@ sub eval1 {
 
     my $op = safeCar($obj);
     my $args = safeCdr($obj);
-    if ($op == makeSym('quote')) {
+    if ($op == $sym_quote) {
         return safeCar($args);
-    } elsif ($op == makeSym('if')) {
+    } elsif ($op == $sym_if) {
         if (eval1(safeCar($args), $env) == $kNil) {
             return eval1(safeCar(safeCdr(safeCdr($args))), $env);
         }
         return eval1(safeCar(safeCdr($args)), $env);
-    } elsif ($op == makeSym('lambda')) {
+    } elsif ($op == $sym_lambda) {
         return makeExpr($args, $env);
-    } elsif ($op == makeSym('defun')) {
+    } elsif ($op == $sym_defun) {
         my $expr = makeExpr(safeCdr($args), $env);
         my $sym = safeCar($args);
         addToEnv($sym, $expr, $g_env);
         return $sym;
-    } elsif ($op == makeSym('setq')) {
+    } elsif ($op == $sym_setq) {
         my $val = eval1(safeCar(safeCdr($args)), $env);
         my $sym = safeCar($args);
         my $bind = findVar($sym, $env);
@@ -314,11 +320,11 @@ sub subrEq {
     my $y = safeCar(safeCdr($args));
     if ($$x{tag} eq 'num' && $$y{tag} eq 'num') {
         if ($$x{data} == $$y{data}) {
-            return makeSym('t');
+            return $sym_t;
         }
         return $kNil;
     } elsif ($x == $y) {
-        return makeSym('t');
+        return $sym_t;
     }
     return $kNil;
 }
@@ -328,13 +334,13 @@ sub subrAtom {
     if (safeCar($args)->{tag} eq 'cons') {
         return $kNil;
     }
-    return makeSym('t');
+    return $sym_t;
 }
 
 sub subrNumberp {
     my ($args) = @_;
     if (safeCar($args)->{tag} eq 'num') {
-        return makeSym('t');
+        return $sym_t;
     }
     return $kNil;
 }
@@ -342,7 +348,7 @@ sub subrNumberp {
 sub subrSymbolp {
     my ($args) = @_;
     if (safeCar($args)->{tag} eq 'sym') {
-        return makeSym('t');
+        return $sym_t;
     }
     return $kNil;
 }
@@ -393,7 +399,7 @@ addToEnv(makeSym('*'), makeSubr($subrMul), $g_env);
 addToEnv(makeSym('-'), makeSubr($subrSub), $g_env);
 addToEnv(makeSym('/'), makeSubr($subrDiv), $g_env);
 addToEnv(makeSym('mod'), makeSubr($subrMod), $g_env);
-addToEnv(makeSym('t'), makeSym('t'), $g_env);
+addToEnv($sym_t, $sym_t, $g_env);
 
 print '> ';
 while (defined(my $line = <STDIN>)) {
