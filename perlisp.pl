@@ -43,6 +43,9 @@ my $sym_if = makeSym('if');
 my $sym_lambda = makeSym('lambda');
 my $sym_defun = makeSym('defun');
 my $sym_setq = makeSym('setq');
+my $sym_loop = makeSym('loop');
+my $sym_return = makeSym('return');
+my $loop_val = $kNil;
 
 sub makeNum {
     my ($num) = @_;
@@ -235,7 +238,10 @@ sub eval1 {
     if ($op == $sym_quote) {
         return safeCar($args);
     } elsif ($op == $sym_if) {
-        if (eval1(safeCar($args), $env) == $kNil) {
+        my $c = eval1(safeCar($args), $env);
+        if ($$c{tag} eq 'error') {
+            return $c;
+        } elsif ($c == $kNil) {
             return eval1(safeCar(safeCdr(safeCdr($args))), $env);
         }
         return eval1(safeCar(safeCdr($args)), $env);
@@ -248,6 +254,9 @@ sub eval1 {
         return $sym;
     } elsif ($op == $sym_setq) {
         my $val = eval1(safeCar(safeCdr($args)), $env);
+        if ($$val{tag} eq 'error') {
+            return $val;
+        }
         my $sym = safeCar($args);
         my $bind = findVar($sym, $env);
         if ($bind == $kNil) {
@@ -256,6 +265,11 @@ sub eval1 {
             $$bind{cdr} = $val;
         }
         return $val;
+    } elsif ($op == $sym_loop) {
+        return loop($args, $env);
+    } elsif ($op == $sym_return) {
+        $loop_val = eval1(safeCar($args), $env);
+        return makeError('');
     }
     return apply(eval1($op, $env), evlis($args, $env), $env);
 }
@@ -279,9 +293,25 @@ sub progn {
     my $ret = $kNil;
     while ($$body{tag} eq 'cons') {
         $ret = eval1($$body{car}, $env);
+        if ($$ret{tag} eq 'error') {
+            return $ret
+        }
         $body = $$body{cdr};
     }
     return $ret;
+}
+
+sub loop {
+    my ($body, $env) = @_;
+    while (1) {
+        my $ret = progn($body, $env);
+        if ($$ret{tag} eq 'error') {
+            if ($$ret{data} eq '') {
+                return $loop_val;
+            }
+            return $ret;
+        }
+    }
 }
 
 sub apply {
